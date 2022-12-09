@@ -1,0 +1,146 @@
+---
+title: "META monthly data analysis"
+author: "Lynnstacy Kegeshi"
+date: "2022-12-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, echo=FALSE}
+library(dplyr)
+library(lubridate)
+library(xts)
+library(tseries)
+library(forecast)
+library(seastests)
+library(FinTS)
+library(tidyverse)
+library(ggplot2)
+```
+
+# Preliminary Analysis
+We shall be using the META monthly stock price data in our time series analysis.The read.csv function reads the data in as a data frame, and assign the data frame to a variable. Then we check the structure of the data to see the data types in our data frame
+```{r}
+metam<-read.csv("META monthly historical prices data.csv", header = TRUE,  sep = ",")
+str(metam)
+```
+
+The date variable is a character. We need to change it to a date format in before plotting our time series
+
+```{r}
+metam$New_date=ymd(metam$Date)
+str(metam$New_date)
+```
+This command creates a new column New_Date and the data type in this column is in date format.
+
+## Plotting the time series
+We chose to use the Closing price column setting the frequency to 12, monthly. 
+
+```{r}
+colnames(metam)
+closingts<-ts(metam$Close,start=c(2012,6),end=c(2022, 5), frequency = 12)
+autoplot(closingts,main = "Closing price TS", xlab = "Time in years", ylab="Closing price" )
+
+
+```
+
+The graph above is a time series of the closing price from 2012 to 2022
+
+### Box plot of the closing price
+In order to compare the distribution of the closing price between the months we used a boxplot
+We first needed to extract the months from the data
+```{r}
+metam$monthhh=month(ymd(metam$New_date), label = TRUE)
+metam$monthhh
+```
+
+After that we plot it
+```{r}
+boxplot(Close~monthhh, 
+        data=metam, 
+        main="Box plot showing META closing price for each month",
+        xlab="Months",
+        ylab="Closing price in US Dollars",
+        col="deepskyblue",
+        border="darkblue")
+```
+
+##Decomposing the time series
+```{r}
+closing_dec<-decompose(closingts, "multiplicative")
+closing_dec
+plot(closing_dec)
+```
+The time series has an upward trend.
+
+### Plot the original ACF AND PACF 
+```{r}
+#Plot the original data ACF and PACF
+ggtsdisplay(closingts)
+```
+
+### Test for stationarity
+#### ADF test
+```{r}
+adf.test(closingts)
+```
+
+pvalue>0.05: 0.07992>0.05, Fail to reject the null hypothesis and conclude that the time series is non stationary
+
+#### KPSS test
+```{r}
+kpss.test(closingts)
+```
+p-value is 0.01. 0.01<0.05, Reject null hypothesis and conclude that the time series is non stationary.
+
+### Make the data stationary
+check how many times we need to differentiate the data in order to make it stationary
+
+```{r}
+ndiffs(closingts)
+```
+We need to differentiate the data only once to make it stationary
+
+Differentiate it and plot the ACF AND PACF 
+```{r}
+dfclosing<-diff(closingts)
+dfclosing
+autoplot(dfclosing, main="Change in closing price per month",xlab="Time in years", ylab="Closing price", col="blue")
+ggtsdisplay(dfclosing)
+
+
+```
+
+Now check if the time series is stationary after differencing.
+```{r}
+ndiffs(dfclosing)
+```
+
+0 indicates we can't differentiate the time series any further.
+
+##### ADF test
+```{r}
+adf.test(dfclosing)
+```
+p-value is 0.1257. 0.1257>0.05, we thus fail to reject null hypothesis and conclude that the time series is non stationary.
+
+##### KPSS test
+```{r}
+kpss.test(dfclosing)
+```
+
+0.1>0.05 fail to reject null hypothesis and conclude that the time series is stationary
+
+Since the series is stationary according to the KPSS test but is not stationary according to the ADF test, we conclude that the series is stationary around a deterministic trend and so is fairly easy to model this series and produce fairly accurate forecasts.
+
+### Seasonality and trend
+```{r}
+isSeasonal(closingts, test="wo")
+```
+
+The time series shows no evidence of seasonality.
+
+
+
