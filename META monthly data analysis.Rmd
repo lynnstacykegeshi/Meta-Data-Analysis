@@ -74,12 +74,14 @@ closing_dec
 plot(closing_dec)
 ```
 The time series has an upward trend.
-
+The variability in the data is also increasing over time.
 ### Plot the original ACF AND PACF 
 ```{r}
 #Plot the original data ACF and PACF
 ggtsdisplay(closingts)
 ```
+
+The ACF plot shows slow decay of lag to 0 indicating an AR model. The PACF plot suggests AR model of the order 1 AR(1) as PACF number is close to 0 after lag 1.
 
 ### Test for stationarity
 #### ADF test
@@ -95,52 +97,95 @@ kpss.test(closingts)
 ```
 p-value is 0.01. 0.01<0.05, Reject null hypothesis and conclude that the time series is non stationary.
 
-### Make the data stationary
+## Make the data stationary
+We need to remove the upward trend of the data and the variability in order to stationarize this time series.
+
+### Removing Variability Using Logarithmic Transformation
+Since the data shows changing variance,log transformation of the data using the log() function will stabilize the data. The resulting series will be a linear time series.
 check how many times we need to differentiate the data in order to make it stationary
 
 ```{r}
-ndiffs(closingts)
-```
-We need to differentiate the data only once to make it stationary
-
-Differentiate it and plot the ACF AND PACF 
-```{r}
-dfclosing<-diff(closingts)
-dfclosing
-autoplot(dfclosing, main="Change in closing price per month",xlab="Time in years", ylab="Closing price", col="blue")
-ggtsdisplay(dfclosing)
-
-
+closingts_linear<-log(closingts)
 ```
 
-Now check if the time series is stationary after differencing.
+Plotting the resulting series
 ```{r}
-ndiffs(dfclosing)
+plot.ts(closingts_linear, main="Closing Stock Prices(log)", ylab="Closing Price", col=4)
+
+```
+Log transformation of the original time series has enabled more “balanced” variance observed throughout the time series, and in a way coerced the data into stationarity.
+
+### Removing Linear Trend
+Check how many times we need to differentiate the log transformed time series
+
+```{r}
+ndiffs(closingts_linear)
+```
+We will now perform the first difference of the log transformed series to make it stationary
+
+Differentiate it and plot the time series, ACF AND PACF plot
+```{r}
+diffclose<-diff(closingts_linear)
+diffclose
+plot.ts(diffclose, main="Change in closing price per month",xlab="Time in years", ylab="Closing price", col="blue")
+ggtsdisplay(diffclose)
+
+
+```
+
+based on our limited analysis, let's say we will go with p=0, d=0, and q=0.
+
+Our suggested model is then ARIMA(0,0,0).
+
+Now check number of differences in the differenced time series for confirmation that the time series has been detrended.
+```{r}
+ndiffs(diffclose)
 ```
 
 0 indicates we can't differentiate the time series any further.
 
-##### ADF test
-```{r}
-adf.test(dfclosing)
-```
-p-value is 0.1257. 0.1257>0.05, we thus fail to reject null hypothesis and conclude that the time series is non stationary.
-
-##### KPSS test
-```{r}
-kpss.test(dfclosing)
-```
-
-0.1>0.05 fail to reject null hypothesis and conclude that the time series is stationary
-
-Since the series is stationary according to the KPSS test but is not stationary according to the ADF test, we conclude that the series is stationary around a deterministic trend and so is fairly easy to model this series and produce fairly accurate forecasts.
-
 ### Seasonality and trend
 ```{r}
-isSeasonal(closingts, test="wo")
+isSeasonal(diffclose, test="wo")
 ```
 
 The time series shows no evidence of seasonality.
 
 
+
+
+##### ADF test
+```{r}
+adf.test(diffclose)
+```
+p-value is 0.01. 0.01<0.05, we thus reject the null hypothesis that the time series is non stationary and conclude that the time series is stationary.
+
+##### KPSS test
+```{r}
+kpss.test(diffclose)
+```
+
+0.1>0.05 fail to reject null hypothesis and conclude that the time series is stationary
+
+
+
+
+## ARIMA 
+ARIMA models cannot handle any type of non-stationarity and the time series is now stationary so we can proceed.
+To find the best ARIMA model to fit our time series, we;
+```{r}
+ARIMAfitmeta <- auto.arima(diffclose, trace=TRUE,
+                       ic= c("bic"), #c("aicc","aic","bic"),
+)
+ARIMAfitmeta
+```
+The best model is thus ARIMA(0,0,0)
+
+Next we fit the model as ARIMA(0, 0, 0).
+```{r}
+diffclose_ar<- arima(diffclose, order=c(0,0,0))
+diffclose_ar
+BIC(diffclose_ar)
+
+```
 
