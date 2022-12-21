@@ -188,4 +188,15 @@ diffclose_ar
 BIC(diffclose_ar)
 
 ```
+The ARIMA equation is:
+diffclose_ar=0.01057
+
+
+## Diagnostic check
+Check residuals
+```{r}
+diffclose_residuals<-residuals(diffclose_ar)
+```
+
+hist(diffclose_ar$residuals)
 

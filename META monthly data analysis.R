@@ -21,7 +21,7 @@ metam$monthhh
 
 #declare data as timeseries and plot
 closingts<-ts(metam$Close,start=c(2012,6),end=c(2022, 5), frequency = 12)
-autoplot(closingts,main = "Closing price TS", xlab = "Time in years", ylab="Closing price" )
+plot.ts(closingts,main = "Closing price TS", xlab = "Time in years", ylab="Closing price" )
 
 
 ###############
@@ -68,16 +68,91 @@ adf.test(closingts)
 
 kpss.test(closingts)
 #p-value is 0.01. 0.01<0.05, Reject null hypothesis and conclude that the time series is non stationary.
-
-
+ndiffs(closingts)
+#####################
 #Data has a strong trend
 #Take the first difference of the data to remove the trend
 dfclosing<-diff(closingts)
 autoplot(dfclosing, main="Change in closing price per month",xlab="Time in years", ylab="Closing price", col="blue")
 ggtsdisplay(dfclosing)
+#This is not the best strategy as we have not log transformed the time series
+##Ignore
+######################
 
 #Now test if TS is stationary
 ndiffs(dfclosing)
 adf.test(dfclosing)
 kpss.test(dfclosing)
 #0.1>0.05 fail to reject null hypothesis and conclude that the time series is stationary
+
+
+#data is not stationary under variance so we get the log transform 
+
+closingts_linear<-log(closingts)
+
+ndiffs(closingts_linear)
+plot.ts(closingts_linear, main="Closing Stock Prices(log)", ylab="Closing Price", col=4)
+
+#We then get the first difference to remove the trend
+diffclose<-diff(closingts_linear)
+isSeasonal(diffclose)
+adf.test(diffclose)
+ndiffs(diffclose)
+
+#######
+#Conducting normal test on log transformed data shows the the resulting time series is not normallly distributed???
+hist(closingts)
+hist(diffclose)
+qqnorm(closingts)
+qqline(closingts)
+qqnorm(diffclose)
+qqline(diffclose)
+shapiro.test(diffclose)
+############
+
+#ARIMA model
+ARIMAfitmeta <- auto.arima(diffclose, trace=TRUE,
+                       ic= c("bic"), #c("aicc","aic","bic"),
+)
+ARIMAfitmeta
+
+
+diffclose_ar<- arima(diffclose, order=c(0,1,0))
+diffclose_ar
+AIC(diffclose_ar)#Extract AIC values  
+
+#Check for residuals
+diffclose_residuals<-residuals(diffclose_ar)
+diffclose_residuals
+acf(diffclose_residuals, main="Correlation of residuals ")
+#Residuals are independent since there are no lags.
+
+plot.ts(diffclose_residuals)
+
+hist(diffclose_ar$residuals)
+#Histogram is bell shaped- normally distributed. The residuals are thus not correlated.
+isSeasonal(diffclose)
+#Ljung box test
+
+ljung_res <- Box.test(diffclose_ar$residuals, lag=2, type="Ljung-Box")
+ljung_res
+
+#0.7777>0.05. Thus, we fail to reject the null hypothesis of the test and conclude that the data values are independent.The model is a good fit for the data
+
+#####
+#Estimate the model
+#Forecasting using original time series
+
+meta_forecast<-forecast(diffclose_ar,level = c(95), h=10*12)
+meta_forecast
+ts.plot(meta_forecast)
+metattttt<-predict(diffclose_ar, n.ahead = 120)
+metattttt
+diffclose_ar
+
+ARIMAfit_m <- auto.arima(closingts, trace=TRUE)
+
+myforecastm <-forecast(ARIMAfit_m, h=10*12)
+myforecastm
+dev.new()
+plot(myforecastm)
